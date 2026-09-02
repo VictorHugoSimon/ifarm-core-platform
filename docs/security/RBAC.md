@@ -15,6 +15,20 @@ Esconder menu ou botão nunca é considerado controle de segurança.
 
 O tenant é o `tenant_id` assinado no JWT pelo Auth Hook. `app_has_permission` confirma que o usuário ainda possui membership ativa naquele tenant, reduzindo o risco de uma claim antiga manter acesso após remoção.
 
+## Perfis padrão
+
+Todo novo tenant recebe automaticamente, por migration/trigger:
+
+- `owner` — Proprietário / Produtor;
+- `tenant_admin` — Administrador;
+- `manager` — Gestor;
+- `technical` — Técnico;
+- `operator` — Operador;
+- `finance` — Financeiro;
+- `partner` — Parceiro.
+
+A matriz inicial é versionada em `0004_default_roles.sql`. `owner` e `tenant_admin` recebem o conjunto tenant-scoped completo; os demais seguem menor privilégio. O perfil Partner começa deliberadamente restrito até existirem ACLs contextuais por contrato/propriedade.
+
 ## Administrador iFarm
 
 `app_is_ifarm_admin()` consulta o banco usando `auth.uid()`; não depende exclusivamente da claim `is_ifarm_admin`. A claim continua útil para UX/MFA, mas a autorização crítica é confirmada na fonte de dados.
@@ -26,6 +40,7 @@ O tenant é o `tenant_id` assinado no JWT pelo Auth Hook. `app_has_permission` c
 - Consent e AuditEvent não aceitam escrita bruta do cliente.
 - AuditEvent é append-only para usuários e criado por `record_audit_event()`.
 - Roles e memberships exigem capabilities administrativas.
+- A role `partner` não recebe acesso amplo a documentos/contratos enquanto não houver escopo contextual.
 
 ## API
 
