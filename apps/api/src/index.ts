@@ -2,40 +2,23 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { requestId } from 'hono/request-id'
 import { secureHeaders } from 'hono/secure-headers'
-import { z } from 'zod'
+import { isMfaSatisfied, requireAuth } from './auth'
+import type { ApiEnv } from './types'
 
-type Bindings = {
-  APP_ENV?: string
-}
-
-type Variables = {
-  requestId: string
-  tenantId?: string
-}
-
-const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
+const app = new Hono<ApiEnv>()
 
 app.use('*', requestId())
 app.use('*', secureHeaders())
-app.use('/api/*', cors({ origin: [], allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'] }))
-
-const tenantIdSchema = z.string().uuid()
+app.use('/api/*', cors({
+  origin: [],
+  allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Authorization', 'Content-Type']
+}))
 
 app.use('/api/v1/*', async (c, next) => {
   const publicPaths = ['/api/v1', '/api/v1/health', '/api/v1/openapi.json']
   if (publicPaths.includes(c.req.path)) return next()
-
-  const rawTenantId = c.req.header('x-tenant-id')
-  const parsed = tenantIdSchema.safeParse(rawTenantId)
-  if (!parsed.success) {
-    return c.json({
-      error: 'TENANT_REQUIRED',
-      message: 'Cabeçalho x-tenant-id com UUID válido é obrigatório.'
-    }, 400)
-  }
-
-  c.set('tenantId', parsed.data)
-  await next()
+  return requireAuth(c, next)
 })
 
 app.get('/', (c) => c.redirect('/api/v1'))
@@ -55,22 +38,63 @@ app.get('/api/v1/health', (c) => c.json({
   timestamp: new Date().toISOString()
 }))
 
+app.get('/api/v1/me', (c) => {
+  const user = c.get('authUser')!
+  return c.json({
+    id: user.id,
+    email: user.email,
+    tenantId: user.tenantId ?? null,
+    membershipId: user.membershipId ?? null,
+    roleId: user.roleId ?? null,
+    role: user.coreRole ?? null,
+    ifarmAdmin: user.isIfarmAdmin,
+    mfa: {
+      level: user.aal,
+      required: user.requiresMfa,
+      satisfied: isMfaSatisfied(user)
+    },
+    requestId: c.get('requestId')
+  })
+})
+
+app.get('/api/v1/context', (c) => {
+  const user = c.get('authUser')!
+  return c.json({
+    userId: user.id,
+    tenantId: user.tenantId ?? null,
+    authenticated: true,
+    requestId: c.get('requestId')
+  })
+})
+
 app.get('/api/v1/openapi.json', (c) => c.json({
   openapi: '3.1.0',
   info: {
     title: 'iFarm Core API',
-    version: '0.1.0',
+    version: '0.2.0',
     description: 'API central compartilhada do ecossistema iFarm.'
   },
   servers: [{ url: '/api/v1' }],
+  components: {
+    securitySchemes: {
+      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }
+    }
+  },
   paths: {
-    '/health': { get: { summary: 'Health check', responses: { '200': { description: 'OK' } } } }
+    '/health': {
+      get: { summary: 'Health check', responses: { '200': { description: 'OK' } } }
+    },
+    '/me': {
+      get: {
+        summary: 'Identidade e contexto autenticado',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Identidade autenticada' },
+          '401': { description: 'Token ausente ou inválido' }
+        }
+      }
+    }
   }
-}))
-
-app.get('/api/v1/context', (c) => c.json({
-  tenantId: c.get('tenantId'),
-  requestId: c.get('requestId')
 }))
 
 app.notFound((c) => c.json({ error: 'NOT_FOUND', requestId: c.get('requestId') }, 404))
