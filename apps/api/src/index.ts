@@ -49,6 +49,7 @@ app.get('/api/v1/health', (c) => c.json({
   ok: true,
   service: 'ifarm-core-api',
   environment: c.env.APP_ENV ?? 'development',
+  database: c.env.DB ? 'd1-bound' : 'd1-not-configured',
   requestId: c.get('requestId'),
   timestamp: new Date().toISOString()
 }))
@@ -150,7 +151,7 @@ app.get('/api/v1/openapi.json', (c) => c.json({
   openapi: '3.1.0',
   info: {
     title: 'iFarm Core API',
-    version: '0.4.0',
+    version: '0.5.0',
     description: 'API central compartilhada do ecossistema iFarm.'
   },
   servers: [{ url: '/api/v1' }],
@@ -164,7 +165,7 @@ app.get('/api/v1/openapi.json', (c) => c.json({
       get: { summary: 'Health check', responses: { '200': { description: 'OK' } } }
     },
     '/public/leads': {
-      post: { summary: 'Registra interesse vindo do site público', responses: { '201': { description: 'Lead registrado' }, '400': { description: 'Dados inválidos' } } }
+      post: { summary: 'Registra interesse vindo do site público em Cloudflare D1', responses: { '201': { description: 'Lead registrado' }, '400': { description: 'Dados inválidos' } } }
     },
     '/me': {
       get: {
