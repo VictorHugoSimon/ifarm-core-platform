@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { createServiceDatabase } from './database'
 import type { ApiBindings } from './types'
 
 const optionalText = (max: number) => z.preprocess(
@@ -22,23 +21,37 @@ export const marketingLeadSchema = z.object({
 export type MarketingLeadInput = z.infer<typeof marketingLeadSchema>
 
 export async function saveMarketingLead(env: ApiBindings, lead: MarketingLeadInput) {
-  const database = createServiceDatabase(env)
-  const { data, error } = await database
-    .from('marketing_lead')
-    .insert({
-      name: lead.name,
-      email: lead.email.toLowerCase(),
-      phone: lead.phone ?? null,
-      organization: lead.organization ?? null,
-      profile: lead.profile,
-      message: lead.message,
-      source: lead.source,
-      privacy_consent: true,
-      consent_at: new Date().toISOString()
-    })
-    .select('id')
-    .single()
+  if (!env.DB) {
+    throw new Error('Cloudflare D1 não configurado neste ambiente.')
+  }
 
-  if (error) throw error
-  return data
+  const id = crypto.randomUUID()
+  const now = new Date().toISOString()
+
+  const result = await env.DB
+    .prepare(`
+      insert into marketing_lead (
+        id, created_at, name, email, phone, organization, profile,
+        message, source, status, privacy_consent, consent_at, metadata
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 1, ?, '{}')
+    `)
+    .bind(
+      id,
+      now,
+      lead.name,
+      lead.email.toLowerCase(),
+      lead.phone ?? null,
+      lead.organization ?? null,
+      lead.profile,
+      lead.message,
+      lead.source,
+      now
+    )
+    .run()
+
+  if (!result.success) {
+    throw new Error('Falha ao persistir lead no Cloudflare D1.')
+  }
+
+  return { id }
 }
