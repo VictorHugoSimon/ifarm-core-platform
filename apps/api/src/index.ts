@@ -15,7 +15,7 @@ app.use('/api/*', cors({
   origin: (origin, c) => {
     const configured = (c.env.SITE_ORIGIN ?? '')
       .split(',')
-      .map((value) => value.trim())
+      .map((value: string) => value.trim())
       .filter(Boolean)
     const allowed = new Set(['http://localhost:5174', ...configured])
     return allowed.has(origin) ? origin : ''
