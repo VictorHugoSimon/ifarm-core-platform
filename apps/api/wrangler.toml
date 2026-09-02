@@ -12,3 +12,14 @@ vars = { APP_ENV = "stage" }
 [env.production]
 name = "ifarm-core-api"
 vars = { APP_ENV = "production" }
+
+# Cloudflare D1 para o site público:
+# 1) criar o banco `ifarm-smart-farm`
+# 2) adicionar o binding abaixo com o database_id real
+# 3) aplicar `apps/api/migrations/0001_marketing_leads.sql`
+#
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "ifarm-smart-farm"
+# database_id = "SUBSTITUIR_PELO_DATABASE_ID"
+# migrations_dir = "migrations"

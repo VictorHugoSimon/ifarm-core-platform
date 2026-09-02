@@ -1,0 +1,39 @@
+name: Deploy Smart Farm Site
+
+on:
+  push:
+    branches: [stage, main]
+    paths:
+      - 'apps/site/**'
+      - 'package.json'
+      - '.github/workflows/deploy-smart-farm-site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install
+        run: npm install
+
+      - name: Build Smart Farm site
+        run: npm run build -w @ifarm/site
+        env:
+          VITE_API_URL: ${{ vars.SMART_FARM_API_URL }}
+
+      - name: Deploy Cloudflare Pages
+        run: npx wrangler@4.128.0 pages deploy apps/site/dist --project-name=ifarm-smart-farm-site --branch=${{ github.ref_name }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
