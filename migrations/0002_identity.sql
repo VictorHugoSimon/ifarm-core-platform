@@ -77,16 +77,16 @@ as $$
 declare
   claims jsonb;
   user_uuid uuid;
-  requested_tenant uuid;
+  requested_tenant_text text;
   selected_tenant uuid;
   selected_membership uuid;
   selected_role uuid;
   selected_role_code text;
-  membership_count integer;
+  membership_count integer := 0;
   user_is_admin boolean := false;
   needs_mfa boolean := false;
 begin
-  claims := event -> 'claims';
+  claims := coalesce(event -> 'claims', '{}'::jsonb);
   user_uuid := (event ->> 'user_id')::uuid;
 
   select coalesce(u.is_ifarm_admin, false)
@@ -94,19 +94,23 @@ begin
   from public.users u
   where u.id = user_uuid;
 
-  select nullif(au.raw_app_meta_data ->> 'active_tenant_id', '')::uuid
-  into requested_tenant
+  user_is_admin := coalesce(user_is_admin, false);
+
+  select nullif(au.raw_app_meta_data ->> 'active_tenant_id', '')
+  into requested_tenant_text
   from auth.users au
   where au.id = user_uuid;
 
-  if requested_tenant is not null then
+  -- A string de app_metadata nunca é convertida diretamente para UUID antes de ser
+  -- validada por uma membership real, evitando que metadata inválida interrompa login.
+  if requested_tenant_text is not null then
     select m.tenant_id, m.id, m.role_id, r.code
     into selected_tenant, selected_membership, selected_role, selected_role_code
     from public.memberships m
     join public.roles r
       on r.tenant_id = m.tenant_id and r.id = m.role_id
     where m.user_id = user_uuid
-      and m.tenant_id = requested_tenant
+      and m.tenant_id::text = requested_tenant_text
       and m.status = 'active'
     limit 1;
   else
@@ -126,7 +130,8 @@ begin
     end if;
   end if;
 
-  needs_mfa := user_is_admin or selected_role_code in ('owner', 'tenant_admin', 'admin');
+  needs_mfa := user_is_admin
+    or coalesce(selected_role_code in ('owner', 'tenant_admin', 'admin'), false);
 
   claims := jsonb_set(claims, '{is_ifarm_admin}', to_jsonb(user_is_admin), true);
   claims := jsonb_set(claims, '{requires_mfa}', to_jsonb(needs_mfa), true);
