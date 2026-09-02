@@ -3,6 +3,8 @@ import { cors } from 'hono/cors'
 import { requestId } from 'hono/request-id'
 import { secureHeaders } from 'hono/secure-headers'
 import { isMfaSatisfied, requireAuth } from './auth'
+import { listMyPermissions } from './authorization'
+import { extractBearerToken } from './auth'
 import type { ApiEnv } from './types'
 
 const app = new Hono<ApiEnv>()
@@ -57,6 +59,26 @@ app.get('/api/v1/me', (c) => {
   })
 })
 
+app.get('/api/v1/me/permissions', async (c) => {
+  try {
+    const token = extractBearerToken(c.req.header('authorization'))
+    const permissions = await listMyPermissions(c.env, token)
+    return c.json({ permissions, requestId: c.get('requestId') })
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      requestId: c.get('requestId'),
+      event: 'load_permissions_failed',
+      message: error instanceof Error ? error.message : 'unknown'
+    }))
+    return c.json({
+      error: 'PERMISSION_CHECK_FAILED',
+      message: 'Não foi possível carregar as permissões.',
+      requestId: c.get('requestId')
+    }, 500)
+  }
+})
+
 app.get('/api/v1/context', (c) => {
   const user = c.get('authUser')!
   return c.json({
@@ -71,7 +93,7 @@ app.get('/api/v1/openapi.json', (c) => c.json({
   openapi: '3.1.0',
   info: {
     title: 'iFarm Core API',
-    version: '0.2.0',
+    version: '0.3.0',
     description: 'API central compartilhada do ecossistema iFarm.'
   },
   servers: [{ url: '/api/v1' }],
@@ -90,6 +112,16 @@ app.get('/api/v1/openapi.json', (c) => c.json({
         security: [{ bearerAuth: [] }],
         responses: {
           '200': { description: 'Identidade autenticada' },
+          '401': { description: 'Token ausente ou inválido' }
+        }
+      }
+    },
+    '/me/permissions': {
+      get: {
+        summary: 'Permissões efetivas do usuário no tenant ativo',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Lista de permission codes' },
           '401': { description: 'Token ausente ou inválido' }
         }
       }
