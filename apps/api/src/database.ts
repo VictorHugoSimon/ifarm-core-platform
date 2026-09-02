@@ -22,17 +22,3 @@ export function createUserDatabase(env: ApiBindings, accessToken: string) {
     }
   })
 }
-
-export function createServiceDatabase(env: ApiBindings) {
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new DatabaseConfigurationError()
-  }
-
-  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false
-    }
-  })
-}
