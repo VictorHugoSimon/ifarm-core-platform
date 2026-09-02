@@ -15,8 +15,10 @@ export type AuthUser = {
 
 export type ApiBindings = {
   APP_ENV?: string
+  SITE_ORIGIN?: string
   SUPABASE_URL?: string
   SUPABASE_PUBLISHABLE_KEY?: string
+  SUPABASE_SERVICE_ROLE_KEY?: string
 }
 
 export type ApiVariables = {
