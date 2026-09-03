@@ -4,11 +4,14 @@ compatibility_date = "2026-09-02"
 
 [vars]
 APP_ENV = "development"
+NEON_AUTH_URL = "https://ep-curly-king-arxv56dm.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth"
+NEON_AUTH_JWKS_URL = "https://ep-curly-king-arxv56dm.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json"
+NEON_DATA_API_URL = "https://ep-curly-king-arxv56dm.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1"
 
 [env.stage]
 name = "ifarm-core-api-stage"
-vars = { APP_ENV = "stage" }
+vars = { APP_ENV = "stage", NEON_AUTH_URL = "https://ep-purple-glitter-arps8njk.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth", NEON_AUTH_JWKS_URL = "https://ep-purple-glitter-arps8njk.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json", NEON_DATA_API_URL = "https://ep-purple-glitter-arps8njk.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1" }
 
 [env.production]
 name = "ifarm-core-api"
-vars = { APP_ENV = "production" }
+vars = { APP_ENV = "production", NEON_AUTH_URL = "https://ep-solitary-resonance-ar2wxsbi.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth", NEON_AUTH_JWKS_URL = "https://ep-solitary-resonance-ar2wxsbi.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json", NEON_DATA_API_URL = "https://ep-solitary-resonance-ar2wxsbi.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1" }
