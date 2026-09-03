@@ -1,0 +1,84 @@
+name: Deploy iFarm Core API
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Ambiente de destino
+        required: true
+        type: choice
+        options:
+          - dev
+          - stage
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DATABASE_URL_DEV: ${{ secrets.IFARM_CORE_DATABASE_URL_DEV }}
+      DATABASE_URL_STAGE: ${{ secrets.IFARM_CORE_DATABASE_URL_STAGE }}
+      DATABASE_URL_PROD: ${{ secrets.IFARM_CORE_DATABASE_URL_PROD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install
+        run: npm install
+
+      - name: Select target
+        id: target
+        shell: bash
+        run: |
+          case "${{ inputs.target }}" in
+            dev)
+              echo "wrangler_args=" >> "$GITHUB_OUTPUT"
+              ;;
+            stage)
+              echo "wrangler_args=--env stage" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              echo "wrangler_args=--env production" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Ambiente inválido" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN ausente" >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID ausente" >&2; exit 1; }
+          case "${{ inputs.target }}" in
+            dev) test -n "$DATABASE_URL_DEV" || { echo "IFARM_CORE_DATABASE_URL_DEV ausente" >&2; exit 1; } ;;
+            stage) test -n "$DATABASE_URL_STAGE" || { echo "IFARM_CORE_DATABASE_URL_STAGE ausente" >&2; exit 1; } ;;
+            production) test -n "$DATABASE_URL_PROD" || { echo "IFARM_CORE_DATABASE_URL_PROD ausente" >&2; exit 1; } ;;
+          esac
+
+      - name: Sync DATABASE_URL Worker secret
+        working-directory: apps/api
+        shell: bash
+        run: |
+          case "${{ inputs.target }}" in
+            dev) DATABASE_URL="$DATABASE_URL_DEV" ;;
+            stage) DATABASE_URL="$DATABASE_URL_STAGE" ;;
+            production) DATABASE_URL="$DATABASE_URL_PROD" ;;
+          esac
+          printf '%s' "$DATABASE_URL" | npx wrangler secret put DATABASE_URL ${{ steps.target.outputs.wrangler_args }}
+
+      - name: Deploy Worker
+        working-directory: apps/api
+        run: npx wrangler deploy ${{ steps.target.outputs.wrangler_args }}
