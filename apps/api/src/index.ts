@@ -29,7 +29,8 @@ app.get('/api/v1', (c) => c.json({
   name: 'iFarm Core API',
   version: 'v1',
   status: 'building',
-  environment: c.env.APP_ENV ?? 'development'
+  environment: c.env.APP_ENV ?? 'development',
+  identityProvider: 'neon-auth'
 }))
 
 app.get('/api/v1/health', (c) => c.json({
@@ -51,8 +52,8 @@ app.get('/api/v1/me', (c) => {
     role: user.coreRole ?? null,
     ifarmAdmin: user.isIfarmAdmin,
     mfa: {
-      level: user.aal,
       required: user.requiresMfa,
+      verified: user.mfaVerified,
       satisfied: isMfaSatisfied(user)
     },
     requestId: c.get('requestId')
@@ -85,6 +86,7 @@ app.get('/api/v1/context', (c) => {
     userId: user.id,
     tenantId: user.tenantId ?? null,
     authenticated: true,
+    identityProvider: 'neon-auth',
     requestId: c.get('requestId')
   })
 })
@@ -93,7 +95,7 @@ app.get('/api/v1/openapi.json', (c) => c.json({
   openapi: '3.1.0',
   info: {
     title: 'iFarm Core API',
-    version: '0.3.0',
+    version: '0.4.0',
     description: 'API central compartilhada do ecossistema iFarm.'
   },
   servers: [{ url: '/api/v1' }],
@@ -108,7 +110,7 @@ app.get('/api/v1/openapi.json', (c) => c.json({
     },
     '/me': {
       get: {
-        summary: 'Identidade e contexto autenticado',
+        summary: 'Identidade Neon Auth e contexto Core carregado do PostgreSQL',
         security: [{ bearerAuth: [] }],
         responses: {
           '200': { description: 'Identidade autenticada' },

@@ -5,7 +5,7 @@ import type { AuthUser } from './types'
 
 const baseUser: AuthUser = {
   id: '0f9f3c7c-6ed1-4f1b-9d77-35542a2dfc3e',
-  aal: 'aal1',
+  mfaVerified: false,
   isIfarmAdmin: false,
   requiresMfa: false
 }
@@ -15,7 +15,7 @@ describe('RBAC boundary', () => {
     expect(() => assertTenantContext(baseUser)).toThrow(AuthorizationFailure)
   })
 
-  it('accepts a tenant carried by verified identity context', () => {
+  it('accepts the active tenant loaded from the database context', () => {
     expect(() => assertTenantContext({
       ...baseUser,
       tenantId: 'f251196e-ad9b-4958-bb71-52a144e3f3b4'
@@ -26,7 +26,8 @@ describe('RBAC boundary', () => {
     expect(() => assertTenantContext({
       ...baseUser,
       isIfarmAdmin: true,
-      requiresMfa: true
+      requiresMfa: true,
+      mfaVerified: true
     })).not.toThrow()
   })
 

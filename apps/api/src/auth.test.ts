@@ -17,42 +17,37 @@ describe('Identity boundary', () => {
     expect(() => extractBearerToken()).toThrowError(/obrigatório/i)
   })
 
-  it('normalizes verified authenticated claims', () => {
+  it('normalizes a verified Neon Auth identity', () => {
     const user = normalizeVerifiedClaims({
       sub: '0f9f3c7c-6ed1-4f1b-9d77-35542a2dfc3e',
       email: 'gestor@ifarm.local',
-      role: 'authenticated',
-      aal: 'aal2',
-      tenant_id: 'f251196e-ad9b-4958-bb71-52a144e3f3b4',
-      is_ifarm_admin: true
+      sid: 'session-123',
+      amr: ['pwd', 'totp']
     })
 
     expect(user.id).toBe('0f9f3c7c-6ed1-4f1b-9d77-35542a2dfc3e')
-    expect(user.tenantId).toBe('f251196e-ad9b-4958-bb71-52a144e3f3b4')
-    expect(user.requiresMfa).toBe(true)
-    expect(isMfaSatisfied(user)).toBe(true)
+    expect(user.sessionId).toBe('session-123')
+    expect(user.mfaVerified).toBe(true)
+    expect(user.tenantId).toBeUndefined()
   })
 
-  it('rejects anonymous or non-authenticated tokens', () => {
+  it('rejects anonymous or malformed identities', () => {
     expect(() => normalizeVerifiedClaims({
       sub: '0f9f3c7c-6ed1-4f1b-9d77-35542a2dfc3e',
-      role: 'authenticated',
       is_anonymous: true
     })).toThrow(AuthFailure)
 
     expect(() => normalizeVerifiedClaims({
-      sub: '0f9f3c7c-6ed1-4f1b-9d77-35542a2dfc3e',
-      role: 'anon'
+      sub: 'not-a-uuid'
     })).toThrow(AuthFailure)
   })
 
-  it('requires aal2 when the identity is privileged', () => {
-    const privileged = normalizeVerifiedClaims({
+  it('requires verified MFA when the database marks the identity as privileged', () => {
+    const identity = normalizeVerifiedClaims({
       sub: '0f9f3c7c-6ed1-4f1b-9d77-35542a2dfc3e',
-      role: 'authenticated',
-      aal: 'aal1',
-      requires_mfa: true
+      amr: ['pwd']
     })
+    const privileged = { ...identity, requiresMfa: true }
 
     expect(isMfaSatisfied(privileged)).toBe(false)
     expect(() => assertPrivilegedMfa(privileged)).toThrowError(/multifator/i)

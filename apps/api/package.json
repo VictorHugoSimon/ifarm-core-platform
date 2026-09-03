@@ -1,6 +1,6 @@
 {
   "name": "@ifarm/api",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.112.4",
     "hono": "4.13.5",
+    "jose": "6.2.10",
     "zod": "4.5.4"
   },
   "devDependencies": {
