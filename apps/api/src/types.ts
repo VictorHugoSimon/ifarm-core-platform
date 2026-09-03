@@ -16,6 +16,7 @@ export type ApiBindings = {
   NEON_AUTH_JWKS_URL?: string
   NEON_AUTH_ISSUER?: string
   NEON_DATA_API_URL?: string
+  DATABASE_URL?: string
 }
 
 export type ApiVariables = {
