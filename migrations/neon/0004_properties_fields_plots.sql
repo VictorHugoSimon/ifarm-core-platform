@@ -143,7 +143,7 @@ where p.id = property_id
   and (public.app_has_permission(''property.read'') or public.app_has_permission(''property.manage''))
 limit 1';
 
-create or replace function public.app_list_fields(property_id uuid)
+create or replace function public.app_list_fields(target_property_id uuid)
 returns table(
   id uuid, tenant_id uuid, property_id uuid, name text, area_ha numeric,
   geometry jsonb, created_at timestamptz, updated_at timestamptz
@@ -153,7 +153,7 @@ set search_path = ''
 as 'select f.id, f.tenant_id, f.property_id, f.name, f.area_ha, f.geometry, f.created_at, f.updated_at
 from public.fields f
 join public.properties p on p.tenant_id = f.tenant_id and p.id = f.property_id
-where f.property_id = app_list_fields.property_id
+where f.property_id = target_property_id
   and f.tenant_id = public.app_current_tenant_id()
   and f.deleted_at is null
   and p.deleted_at is null
@@ -177,7 +177,7 @@ where f.id = field_id
   and (public.app_has_permission(''property.read'') or public.app_has_permission(''property.manage''))
 limit 1';
 
-create or replace function public.app_list_plots(field_id uuid)
+create or replace function public.app_list_plots(target_field_id uuid)
 returns table(
   id uuid, tenant_id uuid, field_id uuid, code text, name text, area_ha numeric,
   geometry jsonb, created_at timestamptz, updated_at timestamptz
@@ -188,7 +188,7 @@ as 'select pl.id, pl.tenant_id, pl.field_id, pl.code, pl.name, pl.area_ha, pl.ge
 from public.plots pl
 join public.fields f on f.tenant_id = pl.tenant_id and f.id = pl.field_id
 join public.properties p on p.tenant_id = f.tenant_id and p.id = f.property_id
-where pl.field_id = app_list_plots.field_id
+where pl.field_id = target_field_id
   and pl.tenant_id = public.app_current_tenant_id()
   and pl.deleted_at is null
   and f.deleted_at is null
