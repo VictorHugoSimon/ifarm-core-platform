@@ -31,6 +31,15 @@ describe('Identity boundary', () => {
     expect(user.tenantId).toBeUndefined()
   })
 
+  it('does not treat a generic OTP as privileged MFA', () => {
+    const user = normalizeVerifiedClaims({
+      sub: '0f9f3c7c-6ed1-4f1b-9d77-35542a2dfc3e',
+      amr: ['pwd', 'otp']
+    })
+
+    expect(user.mfaVerified).toBe(false)
+  })
+
   it('rejects anonymous or malformed identities', () => {
     expect(() => normalizeVerifiedClaims({
       sub: '0f9f3c7c-6ed1-4f1b-9d77-35542a2dfc3e',

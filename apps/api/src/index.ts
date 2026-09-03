@@ -2,9 +2,9 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { requestId } from 'hono/request-id'
 import { secureHeaders } from 'hono/secure-headers'
-import { isMfaSatisfied, requireAuth } from './auth'
+import { extractBearerToken, isMfaSatisfied, requireAuth } from './auth'
 import { listMyPermissions } from './authorization'
-import { extractBearerToken } from './auth'
+import { registerTenancyRoutes } from './tenancy-routes'
 import type { ApiEnv } from './types'
 
 const app = new Hono<ApiEnv>()
@@ -13,7 +13,7 @@ app.use('*', requestId())
 app.use('*', secureHeaders())
 app.use('/api/*', cors({
   origin: [],
-  allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Authorization', 'Content-Type']
 }))
 
@@ -91,11 +91,13 @@ app.get('/api/v1/context', (c) => {
   })
 })
 
+registerTenancyRoutes(app)
+
 app.get('/api/v1/openapi.json', (c) => c.json({
   openapi: '3.1.0',
   info: {
     title: 'iFarm Core API',
-    version: '0.4.0',
+    version: '0.5.0',
     description: 'API central compartilhada do ecossistema iFarm.'
   },
   servers: [{ url: '/api/v1' }],
@@ -112,20 +114,88 @@ app.get('/api/v1/openapi.json', (c) => c.json({
       get: {
         summary: 'Identidade Neon Auth e contexto Core carregado do PostgreSQL',
         security: [{ bearerAuth: [] }],
-        responses: {
-          '200': { description: 'Identidade autenticada' },
-          '401': { description: 'Token ausente ou inválido' }
-        }
+        responses: { '200': { description: 'Identidade autenticada' }, '401': { description: 'Token ausente ou inválido' } }
       }
     },
     '/me/permissions': {
       get: {
-        summary: 'Permissões efetivas do usuário no tenant ativo',
+        summary: 'Permissões efetivas no tenant ativo',
         security: [{ bearerAuth: [] }],
-        responses: {
-          '200': { description: 'Lista de permission codes' },
-          '401': { description: 'Token ausente ou inválido' }
-        }
+        responses: { '200': { description: 'Lista de permission codes' } }
+      }
+    },
+    '/tenants': {
+      get: {
+        summary: 'Lista tenants com membership ativa para seleção de contexto',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Tenants autorizados' } }
+      }
+    },
+    '/me/active-tenant': {
+      post: {
+        summary: 'Seleciona tenant somente quando existe membership ativa',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Contexto atualizado' }, '404': { description: 'Membership não encontrada' } }
+      }
+    },
+    '/tenant': {
+      get: {
+        summary: 'Consulta o tenant ativo derivado da identidade',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Tenant ativo' } }
+      }
+    },
+    '/organizations': {
+      get: {
+        summary: 'Lista Organizations do tenant ativo',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Organizations do tenant' } }
+      },
+      post: {
+        summary: 'Cria Organization no tenant ativo via boundary server-side',
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Organization criada' } }
+      }
+    },
+    '/organizations/{id}': {
+      get: {
+        summary: 'Consulta Organization sem revelar registros de outros tenants',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Organization' }, '404': { description: 'Não encontrada' } }
+      },
+      patch: {
+        summary: 'Atualiza Organization do tenant ativo',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Organization atualizada' }, '404': { description: 'Não encontrada' } }
+      },
+      delete: {
+        summary: 'Exclusão lógica de Organization',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Organization excluída logicamente' } }
+      }
+    },
+    '/configuration/white-label': {
+      get: {
+        summary: 'Consulta configuração white-label do tenant ativo',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'White-label' } }
+      },
+      put: {
+        summary: 'Atualiza configuração white-label com auditoria',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'White-label atualizado' } }
+      }
+    },
+    '/admin/tenants': {
+      get: {
+        summary: 'Administração iFarm: lista tenants',
+        security: [{ bearerAuth: [] }],
+        responses: { '200': { description: 'Tenants' }, '403': { description: 'MFA ou privilégio obrigatório' } }
+      },
+      post: {
+        summary: 'Administração iFarm: cria tenant e roles padrão',
+        security: [{ bearerAuth: [] }],
+        responses: { '201': { description: 'Tenant criado' }, '403': { description: 'MFA ou privilégio obrigatório' } }
       }
     }
   }

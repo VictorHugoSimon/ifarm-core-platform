@@ -63,7 +63,7 @@ export function normalizeVerifiedClaims(raw: unknown): AuthUser {
     claims.mfa_verified
     || claims.two_factor_verified
     || claims.aal === 'aal2'
-    || amr.some((method) => ['mfa', '2fa', 'totp', 'otp'].includes(method))
+    || amr.some((method) => ['mfa', '2fa', 'totp'].includes(method))
   )
 
   return {
