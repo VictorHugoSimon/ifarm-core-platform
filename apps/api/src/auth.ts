@@ -104,6 +104,10 @@ async function loadIdentityContext(
   env: ApiBindings,
   user: AuthUser
 ): Promise<AuthUser> {
+  // Cria somente o registro mínimo do Core para uma identidade já validada pelo Neon Auth.
+  // A RPC é security-definer e aceita apenas auth.user_id(), nunca um user_id fornecido pelo cliente.
+  await callDataApiRpc<unknown>(env, token, 'app_bootstrap_user')
+
   const raw = await callDataApiRpc<unknown>(env, token, 'app_identity_context')
   const candidate = Array.isArray(raw) ? raw[0] : raw
   const parsed = identityContextSchema.safeParse(candidate ?? {})
