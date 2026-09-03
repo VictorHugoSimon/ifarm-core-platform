@@ -1,10 +1,8 @@
-export type AuthenticatorAssuranceLevel = 'aal1' | 'aal2'
-
 export type AuthUser = {
   id: string
   email?: string
   sessionId?: string
-  aal: AuthenticatorAssuranceLevel
+  mfaVerified: boolean
   tenantId?: string
   membershipId?: string
   roleId?: string
@@ -15,8 +13,9 @@ export type AuthUser = {
 
 export type ApiBindings = {
   APP_ENV?: string
-  SUPABASE_URL?: string
-  SUPABASE_PUBLISHABLE_KEY?: string
+  NEON_AUTH_JWKS_URL?: string
+  NEON_AUTH_ISSUER?: string
+  NEON_DATA_API_URL?: string
 }
 
 export type ApiVariables = {
