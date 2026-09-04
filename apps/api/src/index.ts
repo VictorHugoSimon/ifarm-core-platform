@@ -4,6 +4,7 @@ import { requestId } from 'hono/request-id'
 import { secureHeaders } from 'hono/secure-headers'
 import { extractBearerToken, isMfaSatisfied, requireAuth } from './auth'
 import { listMyPermissions } from './authorization'
+import { registerRuralRoutes } from './rural-routes'
 import { registerTenancyRoutes } from './tenancy-routes'
 import type { ApiEnv } from './types'
 
@@ -92,12 +93,13 @@ app.get('/api/v1/context', (c) => {
 })
 
 registerTenancyRoutes(app)
+registerRuralRoutes(app)
 
 app.get('/api/v1/openapi.json', (c) => c.json({
   openapi: '3.1.0',
   info: {
     title: 'iFarm Core API',
-    version: '0.5.0',
+    version: '0.6.0',
     description: 'API central compartilhada do ecossistema iFarm.'
   },
   servers: [{ url: '/api/v1' }],
@@ -146,57 +148,48 @@ app.get('/api/v1/openapi.json', (c) => c.json({
       }
     },
     '/organizations': {
-      get: {
-        summary: 'Lista Organizations do tenant ativo',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Organizations do tenant' } }
-      },
-      post: {
-        summary: 'Cria Organization no tenant ativo via boundary server-side',
-        security: [{ bearerAuth: [] }],
-        responses: { '201': { description: 'Organization criada' } }
-      }
+      get: { summary: 'Lista Organizations do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Organizations do tenant' } } },
+      post: { summary: 'Cria Organization no tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Organization criada' } } }
     },
     '/organizations/{id}': {
-      get: {
-        summary: 'Consulta Organization sem revelar registros de outros tenants',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Organization' }, '404': { description: 'Não encontrada' } }
-      },
-      patch: {
-        summary: 'Atualiza Organization do tenant ativo',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Organization atualizada' }, '404': { description: 'Não encontrada' } }
-      },
-      delete: {
-        summary: 'Exclusão lógica de Organization',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Organization excluída logicamente' } }
-      }
+      get: { summary: 'Consulta Organization do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Organization' }, '404': { description: 'Não encontrada' } } },
+      patch: { summary: 'Atualiza Organization do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Organization atualizada' } } },
+      delete: { summary: 'Exclusão lógica de Organization', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Organization excluída logicamente' } } }
     },
     '/configuration/white-label': {
-      get: {
-        summary: 'Consulta configuração white-label do tenant ativo',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'White-label' } }
-      },
-      put: {
-        summary: 'Atualiza configuração white-label com auditoria',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'White-label atualizado' } }
-      }
+      get: { summary: 'Consulta white-label do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'White-label' } } },
+      put: { summary: 'Atualiza white-label com auditoria', security: [{ bearerAuth: [] }], responses: { '200': { description: 'White-label atualizado' } } }
     },
     '/admin/tenants': {
-      get: {
-        summary: 'Administração iFarm: lista tenants',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Tenants' }, '403': { description: 'MFA ou privilégio obrigatório' } }
-      },
-      post: {
-        summary: 'Administração iFarm: cria tenant e roles padrão',
-        security: [{ bearerAuth: [] }],
-        responses: { '201': { description: 'Tenant criado' }, '403': { description: 'MFA ou privilégio obrigatório' } }
-      }
+      get: { summary: 'Administração iFarm: lista tenants', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Tenants' }, '403': { description: 'MFA ou privilégio obrigatório' } } },
+      post: { summary: 'Administração iFarm: cria tenant e roles padrão', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Tenant criado' }, '403': { description: 'MFA ou privilégio obrigatório' } } }
+    },
+    '/properties': {
+      get: { summary: 'Lista propriedades do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Propriedades' } } },
+      post: { summary: 'Cria propriedade vinculada a Organization do tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Propriedade criada' } } }
+    },
+    '/properties/{id}': {
+      get: { summary: 'Consulta propriedade sem revelar outro tenant', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Propriedade' }, '404': { description: 'Não encontrada' } } },
+      patch: { summary: 'Atualiza propriedade do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Propriedade atualizada' } } },
+      delete: { summary: 'Exclusão lógica de propriedade', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Propriedade excluída logicamente' } } }
+    },
+    '/properties/{propertyId}/fields': {
+      get: { summary: 'Lista áreas da propriedade', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Áreas' } } },
+      post: { summary: 'Cria área na propriedade do tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Área criada' } } }
+    },
+    '/fields/{id}': {
+      get: { summary: 'Consulta área do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Área' }, '404': { description: 'Não encontrada' } } },
+      patch: { summary: 'Atualiza área', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Área atualizada' } } },
+      delete: { summary: 'Exclusão lógica de área', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Área excluída logicamente' } } }
+    },
+    '/fields/{fieldId}/plots': {
+      get: { summary: 'Lista talhões da área', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhões' } } },
+      post: { summary: 'Cria talhão na área do tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Talhão criado' } } }
+    },
+    '/plots/{id}': {
+      get: { summary: 'Consulta talhão do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhão' }, '404': { description: 'Não encontrado' } } },
+      patch: { summary: 'Atualiza talhão', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhão atualizado' } } },
+      delete: { summary: 'Exclusão lógica de talhão', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhão excluído logicamente' } } }
     }
   }
 }))
