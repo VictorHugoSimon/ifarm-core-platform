@@ -4,6 +4,7 @@ import { requestId } from 'hono/request-id'
 import { secureHeaders } from 'hono/secure-headers'
 import { extractBearerToken, isMfaSatisfied, requireAuth } from './auth'
 import { listMyPermissions } from './authorization'
+import { registerOperationsRoutes } from './operations-routes'
 import { registerRuralRoutes } from './rural-routes'
 import { registerTenancyRoutes } from './tenancy-routes'
 import type { ApiEnv } from './types'
@@ -94,12 +95,13 @@ app.get('/api/v1/context', (c) => {
 
 registerTenancyRoutes(app)
 registerRuralRoutes(app)
+registerOperationsRoutes(app)
 
 app.get('/api/v1/openapi.json', (c) => c.json({
   openapi: '3.1.0',
   info: {
     title: 'iFarm Core API',
-    version: '0.6.0',
+    version: '0.7.0',
     description: 'API central compartilhada do ecossistema iFarm.'
   },
   servers: [{ url: '/api/v1' }],
@@ -190,6 +192,34 @@ app.get('/api/v1/openapi.json', (c) => c.json({
       get: { summary: 'Consulta talhão do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhão' }, '404': { description: 'Não encontrado' } } },
       patch: { summary: 'Atualiza talhão', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhão atualizado' } } },
       delete: { summary: 'Exclusão lógica de talhão', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhão excluído logicamente' } } }
+    },
+    '/partners': {
+      get: { summary: 'Lista parceiros do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Parceiros' } } },
+      post: { summary: 'Cria parceiro no tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Parceiro criado' } } }
+    },
+    '/partners/{id}': {
+      get: { summary: 'Consulta parceiro do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Parceiro' }, '404': { description: 'Não encontrado' } } },
+      patch: { summary: 'Atualiza parceiro', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Parceiro atualizado' } } },
+      delete: { summary: 'Exclusão lógica de parceiro', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Parceiro excluído logicamente' } } }
+    },
+    '/documents': {
+      get: { summary: 'Lista metadados de documentos do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Documentos' } } },
+      post: { summary: 'Registra metadados de documento', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Documento registrado' } } }
+    },
+    '/documents/{id}': {
+      get: { summary: 'Consulta metadados do documento', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Documento' }, '404': { description: 'Não encontrado' } } },
+      patch: { summary: 'Atualiza metadados do documento', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Documento atualizado' } } },
+      delete: { summary: 'Exclusão lógica do documento', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Documento excluído logicamente' } } }
+    },
+    '/notifications': {
+      get: { summary: 'Lista somente notificações do próprio usuário', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Notificações' } } },
+      post: { summary: 'Cria notificação interna para membro ativo do mesmo tenant', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Notificação criada' } } }
+    },
+    '/notifications/{id}/read': {
+      post: { summary: 'Marca como lida somente notificação do próprio usuário', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Notificação lida' }, '404': { description: 'Não encontrada' } } }
+    },
+    '/audit-events': {
+      get: { summary: 'Consulta paginada de AuditEvent do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Eventos de auditoria' } } }
     }
   }
 }))
