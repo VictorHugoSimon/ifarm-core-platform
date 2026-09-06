@@ -7,6 +7,7 @@ import { listMyPermissions } from './authorization'
 import { registerOperationsRoutes } from './operations-routes'
 import { registerRuralRoutes } from './rural-routes'
 import { registerTenancyRoutes } from './tenancy-routes'
+import { registerUserManagementRoutes } from './user-management-routes'
 import type { ApiEnv } from './types'
 
 const app = new Hono<ApiEnv>()
@@ -96,12 +97,13 @@ app.get('/api/v1/context', (c) => {
 registerTenancyRoutes(app)
 registerRuralRoutes(app)
 registerOperationsRoutes(app)
+registerUserManagementRoutes(app)
 
 app.get('/api/v1/openapi.json', (c) => c.json({
   openapi: '3.1.0',
   info: {
     title: 'iFarm Core API',
-    version: '0.7.0',
+    version: '0.8.0',
     description: 'API central compartilhada do ecossistema iFarm.'
   },
   servers: [{ url: '/api/v1' }],
@@ -220,6 +222,25 @@ app.get('/api/v1/openapi.json', (c) => c.json({
     },
     '/audit-events': {
       get: { summary: 'Consulta paginada de AuditEvent do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Eventos de auditoria' } } }
+    },
+    '/roles': {
+      get: { summary: 'Lista roles disponíveis no tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Roles' } } }
+    },
+    '/memberships': {
+      get: { summary: 'Lista memberships e identidades Neon Auth do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Memberships' } } }
+    },
+    '/memberships/{id}': {
+      patch: { summary: 'Altera role, organização ou status com proteção do último administrador', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Membership atualizada' }, '409': { description: 'Alteração rejeitada por governança' } } }
+    },
+    '/membership-invitations': {
+      get: { summary: 'Lista convites do tenant ativo sem expor token/hash', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Convites' } } },
+      post: { summary: 'Cria convite; token bruto é retornado uma única vez para transporte transacional', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Convite criado' } } }
+    },
+    '/membership-invitations/{id}': {
+      delete: { summary: 'Revoga convite pendente', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Convite revogado' }, '404': { description: 'Convite não encontrado' } } }
+    },
+    '/membership-invitations/accept': {
+      post: { summary: 'Aceita convite somente para e-mail verificado da identidade autenticada', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Membership ativada' }, '404': { description: 'Convite inválido ou expirado' } } }
     }
   }
 }))
