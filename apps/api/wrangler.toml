@@ -4,13 +4,13 @@ compatibility_date = "2026-09-02"
 
 [vars]
 APP_ENV = "development"
-NEON_AUTH_URL = "https://ep-hidden-hill-ar508mly.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth"
-NEON_AUTH_JWKS_URL = "https://ep-hidden-hill-ar508mly.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json"
-NEON_DATA_API_URL = "https://ep-hidden-hill-ar508mly.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1"
+NEON_AUTH_URL = "https://ep-hidden-meadow-arl7ugwr.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth"
+NEON_AUTH_JWKS_URL = "https://ep-hidden-meadow-arl7ugwr.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json"
+NEON_DATA_API_URL = "https://ep-hidden-meadow-arl7ugwr.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1"
 
 [env.stage]
 name = "ifarm-core-api-stage"
-vars = { APP_ENV = "stage", NEON_AUTH_URL = "https://ep-little-shadow-arb4ofvf.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth", NEON_AUTH_JWKS_URL = "https://ep-little-shadow-arb4ofvf.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json", NEON_DATA_API_URL = "https://ep-little-shadow-arb4ofvf.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1" }
+vars = { APP_ENV = "stage", NEON_AUTH_URL = "https://ep-hidden-truth-arvqm0b9.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth", NEON_AUTH_JWKS_URL = "https://ep-hidden-truth-arvqm0b9.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json", NEON_DATA_API_URL = "https://ep-hidden-truth-arvqm0b9.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1" }
 
 [env.production]
 name = "ifarm-core-api"
