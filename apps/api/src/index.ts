@@ -4,11 +4,13 @@ import { requestId } from 'hono/request-id'
 import { secureHeaders } from 'hono/secure-headers'
 import { extractBearerToken, isMfaSatisfied, requireAuth } from './auth'
 import { listMyPermissions } from './authorization'
+import { registerDashboardRoutes } from './dashboard-routes'
 import { registerOperationsRoutes } from './operations-routes'
+import { openApiDocument } from './openapi'
 import { registerRuralRoutes } from './rural-routes'
 import { registerTenancyRoutes } from './tenancy-routes'
-import { registerUserManagementRoutes } from './user-management-routes'
 import type { ApiEnv } from './types'
+import { registerUserManagementRoutes } from './user-management-routes'
 
 const app = new Hono<ApiEnv>()
 
@@ -98,152 +100,9 @@ registerTenancyRoutes(app)
 registerRuralRoutes(app)
 registerOperationsRoutes(app)
 registerUserManagementRoutes(app)
+registerDashboardRoutes(app)
 
-app.get('/api/v1/openapi.json', (c) => c.json({
-  openapi: '3.1.0',
-  info: {
-    title: 'iFarm Core API',
-    version: '0.8.0',
-    description: 'API central compartilhada do ecossistema iFarm.'
-  },
-  servers: [{ url: '/api/v1' }],
-  components: {
-    securitySchemes: {
-      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }
-    }
-  },
-  paths: {
-    '/health': {
-      get: { summary: 'Health check', responses: { '200': { description: 'OK' } } }
-    },
-    '/me': {
-      get: {
-        summary: 'Identidade Neon Auth e contexto Core carregado do PostgreSQL',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Identidade autenticada' }, '401': { description: 'Token ausente ou inválido' } }
-      }
-    },
-    '/me/permissions': {
-      get: {
-        summary: 'Permissões efetivas no tenant ativo',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Lista de permission codes' } }
-      }
-    },
-    '/tenants': {
-      get: {
-        summary: 'Lista tenants com membership ativa para seleção de contexto',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Tenants autorizados' } }
-      }
-    },
-    '/me/active-tenant': {
-      post: {
-        summary: 'Seleciona tenant somente quando existe membership ativa',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Contexto atualizado' }, '404': { description: 'Membership não encontrada' } }
-      }
-    },
-    '/tenant': {
-      get: {
-        summary: 'Consulta o tenant ativo derivado da identidade',
-        security: [{ bearerAuth: [] }],
-        responses: { '200': { description: 'Tenant ativo' } }
-      }
-    },
-    '/organizations': {
-      get: { summary: 'Lista Organizations do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Organizations do tenant' } } },
-      post: { summary: 'Cria Organization no tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Organization criada' } } }
-    },
-    '/organizations/{id}': {
-      get: { summary: 'Consulta Organization do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Organization' }, '404': { description: 'Não encontrada' } } },
-      patch: { summary: 'Atualiza Organization do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Organization atualizada' } } },
-      delete: { summary: 'Exclusão lógica de Organization', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Organization excluída logicamente' } } }
-    },
-    '/configuration/white-label': {
-      get: { summary: 'Consulta white-label do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'White-label' } } },
-      put: { summary: 'Atualiza white-label com auditoria', security: [{ bearerAuth: [] }], responses: { '200': { description: 'White-label atualizado' } } }
-    },
-    '/admin/tenants': {
-      get: { summary: 'Administração iFarm: lista tenants', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Tenants' }, '403': { description: 'MFA ou privilégio obrigatório' } } },
-      post: { summary: 'Administração iFarm: cria tenant e roles padrão', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Tenant criado' }, '403': { description: 'MFA ou privilégio obrigatório' } } }
-    },
-    '/properties': {
-      get: { summary: 'Lista propriedades do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Propriedades' } } },
-      post: { summary: 'Cria propriedade vinculada a Organization do tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Propriedade criada' } } }
-    },
-    '/properties/{id}': {
-      get: { summary: 'Consulta propriedade sem revelar outro tenant', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Propriedade' }, '404': { description: 'Não encontrada' } } },
-      patch: { summary: 'Atualiza propriedade do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Propriedade atualizada' } } },
-      delete: { summary: 'Exclusão lógica de propriedade', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Propriedade excluída logicamente' } } }
-    },
-    '/properties/{propertyId}/fields': {
-      get: { summary: 'Lista áreas da propriedade', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Áreas' } } },
-      post: { summary: 'Cria área na propriedade do tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Área criada' } } }
-    },
-    '/fields/{id}': {
-      get: { summary: 'Consulta área do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Área' }, '404': { description: 'Não encontrada' } } },
-      patch: { summary: 'Atualiza área', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Área atualizada' } } },
-      delete: { summary: 'Exclusão lógica de área', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Área excluída logicamente' } } }
-    },
-    '/fields/{fieldId}/plots': {
-      get: { summary: 'Lista talhões da área', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhões' } } },
-      post: { summary: 'Cria talhão na área do tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Talhão criado' } } }
-    },
-    '/plots/{id}': {
-      get: { summary: 'Consulta talhão do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhão' }, '404': { description: 'Não encontrado' } } },
-      patch: { summary: 'Atualiza talhão', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhão atualizado' } } },
-      delete: { summary: 'Exclusão lógica de talhão', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Talhão excluído logicamente' } } }
-    },
-    '/partners': {
-      get: { summary: 'Lista parceiros do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Parceiros' } } },
-      post: { summary: 'Cria parceiro no tenant ativo', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Parceiro criado' } } }
-    },
-    '/partners/{id}': {
-      get: { summary: 'Consulta parceiro do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Parceiro' }, '404': { description: 'Não encontrado' } } },
-      patch: { summary: 'Atualiza parceiro', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Parceiro atualizado' } } },
-      delete: { summary: 'Exclusão lógica de parceiro', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Parceiro excluído logicamente' } } }
-    },
-    '/documents': {
-      get: { summary: 'Lista metadados de documentos do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Documentos' } } },
-      post: { summary: 'Registra metadados de documento', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Documento registrado' } } }
-    },
-    '/documents/{id}': {
-      get: { summary: 'Consulta metadados do documento', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Documento' }, '404': { description: 'Não encontrado' } } },
-      patch: { summary: 'Atualiza metadados do documento', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Documento atualizado' } } },
-      delete: { summary: 'Exclusão lógica do documento', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Documento excluído logicamente' } } }
-    },
-    '/notifications': {
-      get: { summary: 'Lista somente notificações do próprio usuário', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Notificações' } } },
-      post: { summary: 'Cria notificação interna para membro ativo do mesmo tenant', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Notificação criada' } } }
-    },
-    '/notifications/{id}/read': {
-      post: { summary: 'Marca como lida somente notificação do próprio usuário', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Notificação lida' }, '404': { description: 'Não encontrada' } } }
-    },
-    '/audit-events': {
-      get: { summary: 'Consulta paginada de AuditEvent do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Eventos de auditoria' } } }
-    },
-    '/roles': {
-      get: { summary: 'Lista roles disponíveis no tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Roles' } } }
-    },
-    '/memberships': {
-      get: { summary: 'Lista memberships e identidades Neon Auth do tenant ativo', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Memberships' } } }
-    },
-    '/memberships/{id}': {
-      patch: { summary: 'Altera role, organização ou status com proteção do último administrador', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Membership atualizada' }, '409': { description: 'Alteração rejeitada por governança' } } }
-    },
-    '/membership-invitations': {
-      get: { summary: 'Lista convites do tenant ativo sem expor token/hash', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Convites' } } },
-      post: { summary: 'Cria convite; token bruto é retornado uma única vez para transporte transacional', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Convite criado' } } }
-    },
-    '/membership-invitations/{id}': {
-      delete: { summary: 'Revoga convite pendente', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Convite revogado' }, '404': { description: 'Convite não encontrado' } } }
-    },
-    '/membership-invitations/accept': {
-      post: { summary: 'Aceita convite somente para e-mail verificado da identidade autenticada', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Membership ativada' }, '404': { description: 'Convite inválido ou expirado' } } }
-    }
-  }
-}))
+app.get('/api/v1/openapi.json', (c) => c.json(openApiDocument))
 
 app.notFound((c) => c.json({ error: 'NOT_FOUND', requestId: c.get('requestId') }, 404))
 
