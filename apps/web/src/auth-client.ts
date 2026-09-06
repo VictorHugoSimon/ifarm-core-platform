@@ -10,3 +10,8 @@ if (!authUrl) {
 export const authClient = createAuthClient(authUrl ?? 'http://127.0.0.1/invalid-neon-auth', {
   adapter: BetterAuthReactAdapter()
 })
+
+export async function getJwtToken(): Promise<string | null> {
+  const session = await authClient.getSession()
+  return session.data?.session?.token ?? null
+}
