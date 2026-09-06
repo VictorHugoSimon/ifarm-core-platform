@@ -279,61 +279,52 @@ language sql volatile security definer
 set search_path = ''
 as 'with ctx as (
   select * from public.app_identity_context_for_user(actor_user)
-), target as (
-  select m.*, current_role.code as current_role_code
+), target_row as (
+  select m.id as membership_id, m.tenant_id, m.organization_id, m.user_id, m.role_id,
+         m.status as current_status, m.joined_at, cr.code as current_role_code, c.core_role as actor_role
   from ctx c
   join public.memberships m on m.tenant_id = c.tenant_id and m.id = target_membership_id
-  join public.roles current_role on current_role.tenant_id = m.tenant_id and current_role.id = m.role_id
+  join public.roles cr on cr.tenant_id = m.tenant_id and cr.id = m.role_id
   where c.tenant_id is not null
     and public.app_has_permission_for_user(actor_user, ''user.manage'')
-), next_role as (
-  select r.id, r.tenant_id, r.code
-  from target t
+), requested as (
+  select t.*, r.id as next_role_id, r.code as next_role_code
+  from target_row t
   join public.roles r on r.tenant_id = t.tenant_id and r.id = target_role_id
 ), allowed as (
-  select t.*, nr.id as next_role_id, nr.code as next_role_code
-  from target t
-  join next_role nr on nr.tenant_id = t.tenant_id
-  join ctx c on c.tenant_id = t.tenant_id
+  select q.*
+  from requested q
   where target_status in (''active'',''suspended'')
     and (target_organization_id is null or exists (
       select 1 from public.organizations o
-      where o.id = target_organization_id and o.tenant_id = t.tenant_id and o.deleted_at is null
+      where o.id = target_organization_id and o.tenant_id = q.tenant_id and o.deleted_at is null
     ))
-    and (t.current_role_code <> ''owner'' or c.core_role = ''owner'')
-    and (nr.code <> ''owner'' or c.core_role = ''owner'')
+    and (q.current_role_code <> ''owner'' or q.actor_role = ''owner'')
+    and (q.next_role_code <> ''owner'' or q.actor_role = ''owner'')
     and not (
-      t.status = ''active''
-      and t.current_role_code in (''owner'',''tenant_admin'')
-      and (target_status <> ''active'' or nr.code not in (''owner'',''tenant_admin''))
+      q.current_status = ''active''
+      and q.current_role_code in (''owner'',''tenant_admin'')
+      and (target_status <> ''active'' or q.next_role_code not in (''owner'',''tenant_admin''))
       and not exists (
         select 1
-        from public.memberships other
-        join public.roles other_role on other_role.tenant_id = other.tenant_id and other_role.id = other.role_id
-        where other.tenant_id = t.tenant_id
-          and other.id <> t.id
-          and other.status = ''active''
-          and other_role.code in (''owner'',''tenant_admin'')
+        from public.memberships m2
+        join public.roles r2 on r2.tenant_id = m2.tenant_id and r2.id = m2.role_id
+        where m2.tenant_id = q.tenant_id
+          and m2.id <> q.membership_id
+          and m2.status = ''active''
+          and r2.code in (''owner'',''tenant_admin'')
       )
     )
 ), updated as (
   update public.memberships m
   set role_id = a.next_role_id,
       organization_id = target_organization_id,
-      status = target_status::public.membership_status,
+      status = cast(target_status as public.membership_status),
       joined_at = case when target_status = ''active'' then coalesce(m.joined_at, now()) else m.joined_at end,
       updated_at = now()
   from allowed a
-  where m.id = a.id and m.tenant_id = a.tenant_id
+  where m.id = a.membership_id and m.tenant_id = a.tenant_id
   returning m.id, m.tenant_id, m.organization_id, m.user_id, m.role_id, m.status, m.joined_at, m.updated_at
-), context_clean as (
-  update public.user_contexts uc
-  set active_tenant_id = null, updated_at = now()
-  from updated u
-  where u.status = ''suspended''
-    and uc.user_id = u.user_id
-    and uc.active_tenant_id = u.tenant_id
-  returning uc.user_id
 ), audited as (
   insert into public.audit_events(tenant_id, actor_id, action, entity_type, entity_id, metadata)
   select u.tenant_id, actor_user, ''membership.update'', ''membership'', u.id::text,
