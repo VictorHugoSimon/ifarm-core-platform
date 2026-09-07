@@ -13,6 +13,7 @@ export type AuthUser = {
 
 export type ApiBindings = {
   APP_ENV?: string
+  CORS_ORIGIN?: string
   NEON_AUTH_JWKS_URL?: string
   NEON_AUTH_ISSUER?: string
   NEON_DATA_API_URL?: string

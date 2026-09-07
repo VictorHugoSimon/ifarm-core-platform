@@ -4,14 +4,15 @@ compatibility_date = "2026-09-02"
 
 [vars]
 APP_ENV = "development"
+CORS_ORIGIN = "https://ifarm-core-web-dev.pages.dev"
 NEON_AUTH_URL = "https://ep-hidden-meadow-arl7ugwr.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth"
 NEON_AUTH_JWKS_URL = "https://ep-hidden-meadow-arl7ugwr.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json"
 NEON_DATA_API_URL = "https://ep-hidden-meadow-arl7ugwr.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1"
 
 [env.stage]
 name = "ifarm-core-api-stage"
-vars = { APP_ENV = "stage", NEON_AUTH_URL = "https://ep-hidden-truth-arvqm0b9.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth", NEON_AUTH_JWKS_URL = "https://ep-hidden-truth-arvqm0b9.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json", NEON_DATA_API_URL = "https://ep-hidden-truth-arvqm0b9.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1" }
+vars = { APP_ENV = "stage", CORS_ORIGIN = "https://ifarm-core-web-stage.pages.dev", NEON_AUTH_URL = "https://ep-hidden-truth-arvqm0b9.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth", NEON_AUTH_JWKS_URL = "https://ep-hidden-truth-arvqm0b9.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json", NEON_DATA_API_URL = "https://ep-hidden-truth-arvqm0b9.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1" }
 
 [env.production]
 name = "ifarm-core-api"
-vars = { APP_ENV = "production", NEON_AUTH_URL = "https://ep-solitary-resonance-ar2wxsbi.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth", NEON_AUTH_JWKS_URL = "https://ep-solitary-resonance-ar2wxsbi.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json", NEON_DATA_API_URL = "https://ep-solitary-resonance-ar2wxsbi.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1" }
+vars = { APP_ENV = "production", CORS_ORIGIN = "https://ifarm-core-web.pages.dev", NEON_AUTH_URL = "https://ep-solitary-resonance-ar2wxsbi.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth", NEON_AUTH_JWKS_URL = "https://ep-solitary-resonance-ar2wxsbi.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json", NEON_DATA_API_URL = "https://ep-solitary-resonance-ar2wxsbi.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1" }
