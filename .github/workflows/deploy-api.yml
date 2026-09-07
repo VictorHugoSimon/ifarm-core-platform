@@ -116,7 +116,28 @@ jobs:
             sudo apt-get install -y postgresql-client
           fi
 
-          SCHEMA_OK="$(psql "$DATABASE_URL" --no-psqlrc --tuples-only --no-align --quiet -c "select (to_regclass('public.contracts') is not null and to_regclass('public.tenant_modules') is not null and to_regprocedure('public.app_dashboard_summary()') is not null and to_regprocedure('public.app_server_admin_dashboard_summary(uuid)') is not null)::text;")"
+          SCHEMA_OK="$(psql "$DATABASE_URL" --no-psqlrc --tuples-only --no-align --quiet -c "
+            select (
+              to_regclass('public.contracts') is not null
+              and to_regclass('public.tenant_modules') is not null
+              and exists (
+                select 1
+                from pg_catalog.pg_proc p
+                join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+                where n.nspname = 'public'
+                  and p.proname = 'app_dashboard_summary'
+                  and pg_catalog.oidvectortypes(p.proargtypes) = ''
+              )
+              and exists (
+                select 1
+                from pg_catalog.pg_proc p
+                join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+                where n.nspname = 'public'
+                  and p.proname = 'app_server_admin_dashboard_summary'
+                  and pg_catalog.oidvectortypes(p.proargtypes) = 'uuid'
+              )
+            )::text;
+          ")"
           test "$SCHEMA_OK" = "t" || {
             echo "DATABASE_URL não aponta para um banco iFarm Core com schema CORE-008 completo." >&2
             exit 1
