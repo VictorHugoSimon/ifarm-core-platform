@@ -138,7 +138,7 @@ jobs:
               )
             )::text;
           ")"
-          test "$SCHEMA_OK" = "t" || {
+          test "$SCHEMA_OK" = "true" || {
             echo "DATABASE_URL não aponta para um banco iFarm Core com schema CORE-008 completo." >&2
             exit 1
           }
