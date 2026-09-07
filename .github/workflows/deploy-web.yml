@@ -1,0 +1,169 @@
+name: Deploy iFarm Core Web
+
+on:
+  push:
+    branches:
+      - develop
+      - stage
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Ambiente de destino
+        required: true
+        type: choice
+        options:
+          - dev
+          - stage
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ifarm-core-web-${{ github.event_name == 'workflow_dispatch' && inputs.target || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install
+        run: npm install
+
+      - name: Select target
+        id: target
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET="${{ inputs.target }}"
+          else
+            case "$GITHUB_REF_NAME" in
+              develop) TARGET="dev" ;;
+              stage) TARGET="stage" ;;
+              *)
+                echo "Branch sem ambiente web autorizado: $GITHUB_REF_NAME" >&2
+                exit 1
+                ;;
+            esac
+          fi
+
+          case "$TARGET" in
+            dev)
+              echo "target=dev" >> "$GITHUB_OUTPUT"
+              echo "project_name=ifarm-core-web-dev" >> "$GITHUB_OUTPUT"
+              echo "pages_branch=develop" >> "$GITHUB_OUTPUT"
+              echo "api_url=https://ifarm-core-api-dev.victorhugoteixeirasimon6.workers.dev" >> "$GITHUB_OUTPUT"
+              echo "auth_url=https://ep-hidden-meadow-arl7ugwr.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth" >> "$GITHUB_OUTPUT"
+              ;;
+            stage)
+              echo "target=stage" >> "$GITHUB_OUTPUT"
+              echo "project_name=ifarm-core-web-stage" >> "$GITHUB_OUTPUT"
+              echo "pages_branch=stage" >> "$GITHUB_OUTPUT"
+              echo "api_url=https://ifarm-core-api-stage.victorhugoteixeirasimon6.workers.dev" >> "$GITHUB_OUTPUT"
+              echo "auth_url=https://ep-hidden-truth-arvqm0b9.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+                echo "PRODUCTION web exige workflow_dispatch explícito." >&2
+                exit 1
+              fi
+              echo "target=production" >> "$GITHUB_OUTPUT"
+              echo "project_name=ifarm-core-web" >> "$GITHUB_OUTPUT"
+              echo "pages_branch=main" >> "$GITHUB_OUTPUT"
+              echo "api_url=https://ifarm-core-api.victorhugoteixeirasimon6.workers.dev" >> "$GITHUB_OUTPUT"
+              echo "auth_url=https://ep-solitary-resonance-ar2wxsbi.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Ambiente inválido: $TARGET" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN ausente" >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID ausente" >&2; exit 1; }
+
+      - name: Build web
+        env:
+          VITE_API_URL: ${{ steps.target.outputs.api_url }}
+          VITE_NEON_AUTH_URL: ${{ steps.target.outputs.auth_url }}
+        run: npm run build -w @ifarm/web
+
+      - name: Ensure exclusive Pages project
+        shell: bash
+        run: |
+          PROJECT_NAME="${{ steps.target.outputs.project_name }}"
+          PRODUCTION_BRANCH="${{ steps.target.outputs.pages_branch }}"
+          PROJECT_URL="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME"
+
+          HTTP_STATUS="$(curl --silent --show-error \
+            --output /tmp/pages-project.json \
+            --write-out '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$PROJECT_URL")"
+
+          case "$HTTP_STATUS" in
+            200)
+              echo "Pages project $PROJECT_NAME já existe; reutilizando somente o recurso exclusivo do iFarm Core."
+              ;;
+            404)
+              echo "Pages project $PROJECT_NAME não existe; criando recurso exclusivo do iFarm Core."
+              CREATE_STATUS="$(curl --silent --show-error \
+                --output /tmp/pages-project-create.json \
+                --write-out '%{http_code}' \
+                -X POST \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                -H "Content-Type: application/json" \
+                "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
+                --data "{\"name\":\"$PROJECT_NAME\",\"production_branch\":\"$PRODUCTION_BRANCH\"}")"
+              case "$CREATE_STATUS" in
+                200|201) ;;
+                *)
+                  echo "Falha ao criar Pages project $PROJECT_NAME (HTTP $CREATE_STATUS). Verifique se o token possui Pages Write." >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+            *)
+              echo "Falha ao consultar Pages project $PROJECT_NAME (HTTP $HTTP_STATUS). Verifique permissão Pages Read/Write do token." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Deploy Pages
+        shell: bash
+        run: |
+          npx wrangler pages deploy apps/web/dist \
+            --project-name "${{ steps.target.outputs.project_name }}" \
+            --branch "${{ steps.target.outputs.pages_branch }}" \
+            --commit-hash "$GITHUB_SHA" \
+            --commit-message "iFarm Core web ${{ steps.target.outputs.target }}"
+
+      - name: Smoke test Pages
+        shell: bash
+        run: |
+          SITE_URL="https://${{ steps.target.outputs.project_name }}.pages.dev"
+          echo "Smoke endpoint: $SITE_URL"
+          HTML="$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 "$SITE_URL")"
+          printf '%s' "$HTML" | grep -Fq '<title>iFarm Core</title>' || {
+            echo "Smoke test web falhou: título esperado não encontrado." >&2
+            exit 1
+          }
+          echo "Smoke test web aprovado para ${{ steps.target.outputs.target }}."
