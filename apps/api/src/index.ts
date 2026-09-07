@@ -2,40 +2,30 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { requestId } from 'hono/request-id'
 import { secureHeaders } from 'hono/secure-headers'
-import { z } from 'zod'
+import { extractBearerToken, isMfaSatisfied, requireAuth } from './auth'
+import { listMyPermissions } from './authorization'
+import { registerDashboardRoutes } from './dashboard-routes'
+import { registerOperationsRoutes } from './operations-routes'
+import { openApiDocument } from './openapi'
+import { registerRuralRoutes } from './rural-routes'
+import { registerTenancyRoutes } from './tenancy-routes'
+import type { ApiEnv } from './types'
+import { registerUserManagementRoutes } from './user-management-routes'
 
-type Bindings = {
-  APP_ENV?: string
-}
-
-type Variables = {
-  requestId: string
-  tenantId?: string
-}
-
-const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
+const app = new Hono<ApiEnv>()
 
 app.use('*', requestId())
 app.use('*', secureHeaders())
-app.use('/api/*', cors({ origin: [], allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'] }))
-
-const tenantIdSchema = z.string().uuid()
+app.use('/api/*', cors({
+  origin: [],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Authorization', 'Content-Type']
+}))
 
 app.use('/api/v1/*', async (c, next) => {
   const publicPaths = ['/api/v1', '/api/v1/health', '/api/v1/openapi.json']
   if (publicPaths.includes(c.req.path)) return next()
-
-  const rawTenantId = c.req.header('x-tenant-id')
-  const parsed = tenantIdSchema.safeParse(rawTenantId)
-  if (!parsed.success) {
-    return c.json({
-      error: 'TENANT_REQUIRED',
-      message: 'Cabeçalho x-tenant-id com UUID válido é obrigatório.'
-    }, 400)
-  }
-
-  c.set('tenantId', parsed.data)
-  await next()
+  return requireAuth(c, next)
 })
 
 app.get('/', (c) => c.redirect('/api/v1'))
@@ -44,7 +34,8 @@ app.get('/api/v1', (c) => c.json({
   name: 'iFarm Core API',
   version: 'v1',
   status: 'building',
-  environment: c.env.APP_ENV ?? 'development'
+  environment: c.env.APP_ENV ?? 'development',
+  identityProvider: 'neon-auth'
 }))
 
 app.get('/api/v1/health', (c) => c.json({
@@ -55,23 +46,63 @@ app.get('/api/v1/health', (c) => c.json({
   timestamp: new Date().toISOString()
 }))
 
-app.get('/api/v1/openapi.json', (c) => c.json({
-  openapi: '3.1.0',
-  info: {
-    title: 'iFarm Core API',
-    version: '0.1.0',
-    description: 'API central compartilhada do ecossistema iFarm.'
-  },
-  servers: [{ url: '/api/v1' }],
-  paths: {
-    '/health': { get: { summary: 'Health check', responses: { '200': { description: 'OK' } } } }
-  }
-}))
+app.get('/api/v1/me', (c) => {
+  const user = c.get('authUser')!
+  return c.json({
+    id: user.id,
+    email: user.email,
+    tenantId: user.tenantId ?? null,
+    membershipId: user.membershipId ?? null,
+    roleId: user.roleId ?? null,
+    role: user.coreRole ?? null,
+    ifarmAdmin: user.isIfarmAdmin,
+    mfa: {
+      required: user.requiresMfa,
+      verified: user.mfaVerified,
+      satisfied: isMfaSatisfied(user)
+    },
+    requestId: c.get('requestId')
+  })
+})
 
-app.get('/api/v1/context', (c) => c.json({
-  tenantId: c.get('tenantId'),
-  requestId: c.get('requestId')
-}))
+app.get('/api/v1/me/permissions', async (c) => {
+  try {
+    const token = extractBearerToken(c.req.header('authorization'))
+    const permissions = await listMyPermissions(c.env, token)
+    return c.json({ permissions, requestId: c.get('requestId') })
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      requestId: c.get('requestId'),
+      event: 'load_permissions_failed',
+      message: error instanceof Error ? error.message : 'unknown'
+    }))
+    return c.json({
+      error: 'PERMISSION_CHECK_FAILED',
+      message: 'Não foi possível carregar as permissões.',
+      requestId: c.get('requestId')
+    }, 500)
+  }
+})
+
+app.get('/api/v1/context', (c) => {
+  const user = c.get('authUser')!
+  return c.json({
+    userId: user.id,
+    tenantId: user.tenantId ?? null,
+    authenticated: true,
+    identityProvider: 'neon-auth',
+    requestId: c.get('requestId')
+  })
+})
+
+registerTenancyRoutes(app)
+registerRuralRoutes(app)
+registerOperationsRoutes(app)
+registerUserManagementRoutes(app)
+registerDashboardRoutes(app)
+
+app.get('/api/v1/openapi.json', (c) => c.json(openApiDocument))
 
 app.notFound((c) => c.json({ error: 'NOT_FOUND', requestId: c.get('requestId') }, 404))
 
