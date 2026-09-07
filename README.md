@@ -31,3 +31,5 @@ Nenhum segredo deve ser versionado no repositório.
 ## Estado
 
 Sprint 0 — Fundação técnica em construção.
+
+Baseline atual em `develop`: monorepo, API v1, painel web, schema relacional multi-tenant, RLS, documentação técnica e CI de validação.

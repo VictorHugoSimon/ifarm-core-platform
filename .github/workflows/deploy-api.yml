@@ -1,0 +1,192 @@
+name: Deploy iFarm Core API
+
+on:
+  push:
+    branches:
+      - develop
+      - stage
+    paths:
+      - 'apps/api/**'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Ambiente de destino
+        required: true
+        type: choice
+        options:
+          - dev
+          - stage
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ifarm-core-api-${{ github.event_name == 'workflow_dispatch' && inputs.target || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DATABASE_URL_DEV: ${{ secrets.IFARM_CORE_DATABASE_URL_DEV }}
+      DATABASE_URL_STAGE: ${{ secrets.IFARM_CORE_DATABASE_URL_STAGE }}
+      DATABASE_URL_PROD: ${{ secrets.IFARM_CORE_DATABASE_URL_PROD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install
+        run: npm install
+
+      - name: Select target
+        id: target
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET="${{ inputs.target }}"
+          else
+            case "$GITHUB_REF_NAME" in
+              develop) TARGET="dev" ;;
+              stage) TARGET="stage" ;;
+              *)
+                echo "Branch sem ambiente de deploy autorizado: $GITHUB_REF_NAME" >&2
+                exit 1
+                ;;
+            esac
+          fi
+
+          case "$TARGET" in
+            dev)
+              echo "target=dev" >> "$GITHUB_OUTPUT"
+              echo "wrangler_args=" >> "$GITHUB_OUTPUT"
+              echo "worker_name=ifarm-core-api-dev" >> "$GITHUB_OUTPUT"
+              ;;
+            stage)
+              echo "target=stage" >> "$GITHUB_OUTPUT"
+              echo "wrangler_args=--env stage" >> "$GITHUB_OUTPUT"
+              echo "worker_name=ifarm-core-api-stage" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+                echo "PRODUCTION exige workflow_dispatch explícito." >&2
+                exit 1
+              fi
+              echo "target=production" >> "$GITHUB_OUTPUT"
+              echo "wrangler_args=--env production" >> "$GITHUB_OUTPUT"
+              echo "worker_name=ifarm-core-api" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Ambiente inválido: $TARGET" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN ausente" >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID ausente" >&2; exit 1; }
+          case "${{ steps.target.outputs.target }}" in
+            dev) test -n "$DATABASE_URL_DEV" || { echo "IFARM_CORE_DATABASE_URL_DEV ausente" >&2; exit 1; } ;;
+            stage) test -n "$DATABASE_URL_STAGE" || { echo "IFARM_CORE_DATABASE_URL_STAGE ausente" >&2; exit 1; } ;;
+            production) test -n "$DATABASE_URL_PROD" || { echo "IFARM_CORE_DATABASE_URL_PROD ausente" >&2; exit 1; } ;;
+          esac
+
+      - name: Validate target database schema
+        shell: bash
+        run: |
+          case "${{ steps.target.outputs.target }}" in
+            dev) DATABASE_URL="$DATABASE_URL_DEV" ;;
+            stage) DATABASE_URL="$DATABASE_URL_STAGE" ;;
+            production) DATABASE_URL="$DATABASE_URL_PROD" ;;
+          esac
+
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+
+          SCHEMA_OK="$(psql "$DATABASE_URL" --no-psqlrc --tuples-only --no-align --quiet -c "
+            select (
+              to_regclass('public.contracts') is not null
+              and to_regclass('public.tenant_modules') is not null
+              and exists (
+                select 1
+                from pg_catalog.pg_proc p
+                join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+                where n.nspname = 'public'
+                  and p.proname = 'app_dashboard_summary'
+                  and pg_catalog.oidvectortypes(p.proargtypes) = ''
+              )
+              and exists (
+                select 1
+                from pg_catalog.pg_proc p
+                join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+                where n.nspname = 'public'
+                  and p.proname = 'app_server_admin_dashboard_summary'
+                  and pg_catalog.oidvectortypes(p.proargtypes) = 'uuid'
+              )
+            )::text;
+          ")"
+          test "$SCHEMA_OK" = "true" || {
+            echo "DATABASE_URL não aponta para um banco iFarm Core com schema CORE-008 completo." >&2
+            exit 1
+          }
+
+      - name: Sync DATABASE_URL Worker secret
+        working-directory: apps/api
+        shell: bash
+        run: |
+          case "${{ steps.target.outputs.target }}" in
+            dev) DATABASE_URL="$DATABASE_URL_DEV" ;;
+            stage) DATABASE_URL="$DATABASE_URL_STAGE" ;;
+            production) DATABASE_URL="$DATABASE_URL_PROD" ;;
+          esac
+          printf '%s' "$DATABASE_URL" | npx wrangler secret put DATABASE_URL ${{ steps.target.outputs.wrangler_args }}
+
+      - name: Deploy Worker
+        working-directory: apps/api
+        run: npx wrangler deploy ${{ steps.target.outputs.wrangler_args }}
+
+      - name: Smoke test Worker health
+        shell: bash
+        run: |
+          WORKER_NAME="${{ steps.target.outputs.worker_name }}"
+
+          ACCOUNT_SUBDOMAIN_JSON="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain")"
+
+          WORKERS_SUBDOMAIN="$(printf '%s' "$ACCOUNT_SUBDOMAIN_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{const j=JSON.parse(s);if(!j.success||!j.result?.subdomain)process.exit(2);process.stdout.write(j.result.subdomain)})")"
+
+          SCRIPT_SUBDOMAIN_JSON="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$WORKER_NAME/subdomain")"
+
+          SCRIPT_ENABLED="$(printf '%s' "$SCRIPT_SUBDOMAIN_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{const j=JSON.parse(s);process.stdout.write(j.success&&j.result?.enabled?'true':'false')})")"
+          test "$SCRIPT_ENABLED" = "true" || {
+            echo "workers.dev não está habilitado para $WORKER_NAME; smoke test bloqueado." >&2
+            exit 1
+          }
+
+          HEALTH_URL="https://${WORKER_NAME}.${WORKERS_SUBDOMAIN}.workers.dev/api/v1/health"
+          echo "Smoke endpoint: $HEALTH_URL"
+
+          HEALTH_JSON="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 "$HEALTH_URL")"
+          HEALTH_OK="$(printf '%s' "$HEALTH_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{const j=JSON.parse(s);process.stdout.write(j.ok===true&&j.service==='ifarm-core-api'?'true':'false')})")"
+          test "$HEALTH_OK" = "true" || {
+            echo "Smoke test do iFarm Core API falhou." >&2
+            exit 1
+          }
+
+          echo "Smoke test aprovado para ${{ steps.target.outputs.target }}."
