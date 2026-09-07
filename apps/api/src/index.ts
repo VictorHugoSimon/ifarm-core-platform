@@ -16,11 +16,15 @@ const app = new Hono<ApiEnv>()
 
 app.use('*', requestId())
 app.use('*', secureHeaders())
-app.use('/api/*', cors({
-  origin: [],
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Authorization', 'Content-Type']
-}))
+app.use('/api/*', async (c, next) => {
+  const corsMiddleware = cors({
+    origin: c.env.CORS_ORIGIN ?? '',
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Authorization', 'Content-Type'],
+    maxAge: 86400
+  })
+  return corsMiddleware(c, next)
+})
 
 app.use('/api/v1/*', async (c, next) => {
   const publicPaths = ['/api/v1', '/api/v1/health', '/api/v1/openapi.json']
