@@ -43,7 +43,7 @@ jobs:
           node-version: 24
 
       - name: Install
-        run: npm install
+        run: npm ci
 
       - name: Select target
         id: target
